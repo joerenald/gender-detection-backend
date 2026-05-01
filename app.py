@@ -3,6 +3,7 @@ from flask_cors import CORS
 import base64
 import numpy as np
 import cv2
+import os
 import tensorflow as tf
 
 app = Flask(__name__)
@@ -86,4 +87,5 @@ def predict():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
