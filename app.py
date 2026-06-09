@@ -8,12 +8,19 @@ import tensorflow as tf
 
 app = Flask(__name__)
 
-# Enable CORS
-CORS(app)
+# CORS
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}}
+)
+
+print("Loading models...")
 
 # Load models
 gender_model = tf.keras.models.load_model("model/gender_model.keras")
 age_model = tf.keras.models.load_model("model/age_model.keras")
+
+print("Models loaded successfully.")
 
 labels = ["Male", "Female"]
 
@@ -21,7 +28,7 @@ face_cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
 
-# Health Check
+# Home Route
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({
@@ -38,18 +45,26 @@ def predict():
 
     try:
 
+        print("Prediction request received")
+
         data = request.get_json()
 
-        if not data or "image" not in data:
+        if not data:
             return jsonify({
-                "error": "No image provided"
+                "error": "No JSON received"
+            }), 400
+
+        if "image" not in data:
+            return jsonify({
+                "error": "No image key found"
             }), 400
 
         image_data = data["image"]
 
-        # Remove base64 header if present
         if "," in image_data:
             image_data = image_data.split(",")[1]
+
+        print("Base64 decoded")
 
         img_bytes = base64.b64decode(image_data)
 
@@ -59,8 +74,10 @@ def predict():
 
         if img is None:
             return jsonify({
-                "error": "Invalid image"
+                "error": "Image decoding failed"
             }), 400
+
+        print("Image decoded")
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -70,6 +87,8 @@ def predict():
             minNeighbors=5
         )
 
+        print(f"Faces found: {len(faces)}")
+
         if len(faces) == 0:
             return jsonify({
                 "gender": "No Face Detected",
@@ -77,8 +96,7 @@ def predict():
                 "confidence": 0
             })
 
-        # First detected face
-        (x, y, w, h) = faces[0]
+        x, y, w, h = faces[0]
 
         face = img[y:y+h, x:x+w]
 
@@ -88,11 +106,14 @@ def predict():
 
         face = np.expand_dims(face, axis=0)
 
-        # Predictions
+        print("Running Gender Model")
+
         gender_prediction = gender_model.predict(
             face,
             verbose=0
         )
+
+        print("Running Age Model")
 
         age_prediction = age_model.predict(
             face,
@@ -113,7 +134,7 @@ def predict():
             "confidence": round(confidence, 2)
         }
 
-        print("Prediction:", result)
+        print("Result:", result)
 
         return jsonify(result)
 
@@ -127,6 +148,7 @@ def predict():
 
 
 if __name__ == "__main__":
+
     port = int(os.environ.get("PORT", 10000))
 
     app.run(
