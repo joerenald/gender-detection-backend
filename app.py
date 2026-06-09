@@ -8,39 +8,31 @@ import tensorflow as tf
 
 app = Flask(__name__)
 
-# Enable CORS for frontend
-CORS(
-    app,
-    resources={r"/*": {"origins": "*"}},
-    supports_credentials=True
-)
+# Enable CORS
+CORS(app)
 
 # Load models
 gender_model = tf.keras.models.load_model("model/gender_model.keras")
 age_model = tf.keras.models.load_model("model/age_model.keras")
-race_model = tf.keras.models.load_model("model/race_model.keras")
 
 labels = ["Male", "Female"]
-race_labels = ["White", "Black", "Asian", "Indian", "Others"]
 
 face_cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
 
-
-# Health check route
+# Health Check
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({
         "status": "running",
-        "message": "Gender Age Race Detection API is live"
+        "message": "Gender Age Detection API is live"
     })
 
 
 @app.route("/predict", methods=["POST", "OPTIONS"])
 def predict():
 
-    # Handle browser preflight requests
     if request.method == "OPTIONS":
         return jsonify({"status": "ok"}), 200
 
@@ -55,7 +47,7 @@ def predict():
 
         image_data = data["image"]
 
-        # Remove Base64 header if present
+        # Remove base64 header if present
         if "," in image_data:
             image_data = image_data.split(",")[1]
 
@@ -82,11 +74,10 @@ def predict():
             return jsonify({
                 "gender": "No Face Detected",
                 "age": "",
-                "race": "",
                 "confidence": 0
             })
 
-        # Use first detected face
+        # First detected face
         (x, y, w, h) = faces[0]
 
         face = img[y:y+h, x:x+w]
@@ -97,6 +88,7 @@ def predict():
 
         face = np.expand_dims(face, axis=0)
 
+        # Predictions
         gender_prediction = gender_model.predict(
             face,
             verbose=0
@@ -107,22 +99,17 @@ def predict():
             verbose=0
         )
 
-        race_prediction = race_model.predict(
-            face,
-            verbose=0
-        )
-
         gender_index = int(np.argmax(gender_prediction))
-        race_index = int(np.argmax(race_prediction))
 
-        confidence = float(np.max(gender_prediction)) * 100
+        confidence = float(
+            np.max(gender_prediction)
+        ) * 100
 
         age = int(age_prediction[0][0])
 
         result = {
             "gender": labels[gender_index],
             "age": age,
-            "race": race_labels[race_index],
             "confidence": round(confidence, 2)
         }
 
@@ -141,6 +128,7 @@ def predict():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
+
     app.run(
         host="0.0.0.0",
         port=port
